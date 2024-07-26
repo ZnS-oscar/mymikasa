@@ -55,6 +55,11 @@ For the dependencies please refer [MVT](https://github.com/sega-hsj/MVT-3DVG). A
     --log-dir $PATH_OF_LOG_AND_CHECKPOINT$ \
     --config-file $PATH_OF_CONFIG$
 ```
+```Console
+    python scripts/train_referit3d.py \
+    --log-dir  log\
+    --config-file config/base.yaml
+```
 ### 5.2. Evaluation
 * To evaluate on either Nr3d or Sr3d dataset, plese add the following arguments
 ```Console

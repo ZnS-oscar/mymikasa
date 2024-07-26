@@ -1,6 +1,6 @@
-scannet_file: ""
-referit3D_file: ""
-bert_pretrain_path: ""
+scannet_file: "data_zoo/scannet/sr3d/keep_all_points_with_global_scan_alignment/keep_all_points_with_global_scan_alignment.pkl"
+referit3D_file: "/root/autodl-tmp/mymikasa/data_zoo/referit3dlang/sr3d.csv"
+bert_pretrain_path: "/root/autodl-tmp/mymikasa/distillbert"
 
 batch_size: 12
 mentions_target_class_only: true
