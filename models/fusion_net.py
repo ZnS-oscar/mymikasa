@@ -89,31 +89,6 @@ class FusionNet(nn.Module):
             relative_positions[..., 3] = scale_to_unit_range(relative_positions[..., 3])
         return relative_positions
     @torch.no_grad()
-    def get_ri_feature(self, x):
-        B, N, _ = x.shape
-        relative_positions = x[:, None] - x[:, :, None]        
-        # Obtain the xy distances
-        xy_distances = relative_positions[..., :2].norm(dim=-1, keepdim=True) + 1e-9
-        r = xy_distances.squeeze(-1)
-        phi = torch.atan2(relative_positions[..., 1], relative_positions[..., 0])  # Azimuth angle
-        theta = torch.atan2(r, relative_positions[..., 2])  # Elevation angle
-        sin_phi = torch.sin(phi)
-        cos_phi = torch.cos(phi)
-        sin_theta = torch.sin(theta)
-        cos_theta = torch.cos(theta)
-        relative_positions = torch.cat([relative_positions, xy_distances, sin_phi.unsqueeze(-1), cos_phi.unsqueeze(-1), 
-                                    sin_theta.unsqueeze(-1), cos_theta.unsqueeze(-1)], dim=-1)
-        # Normalize x-y plane to unit vectors
-        if self.norm_xy:
-            relative_positions[..., :2] = relative_positions[..., :2] / xy_distances
-        # Scale z values so that max(z) - min(z) = 1
-        if self.norm_z:
-            relative_positions[..., 2] = scale_to_unit_range(relative_positions[..., 2])
-        # Scale d values between 0 and 1 for each set of relative positions independently.
-        if self.norm_d:
-            relative_positions[..., 3] = scale_to_unit_range(relative_positions[..., 3])
-        return relative_positions
-    @torch.no_grad()
     #this function can replace get_pairwise_distance()
     def get_pairwise_ri_feature(self,x):
         B, N, _ = x.shape
@@ -173,8 +148,8 @@ class FusionNet(nn.Module):
         self.device = device
         B, N, _ = boxes.shape 
         # Data view
-        # boxes = aug_box(boxes, self.view_num, self.training, self.device)
-        # boxes = boxes.reshape(B*self.view_num, N, 7)
+        boxes = aug_box(boxes, self.view_num, self.training, self.device)
+        boxes = boxes.reshape(B*self.view_num, N, 7)
         boxes=boxes.to(device)
         xyz = boxes[...,:3]
         

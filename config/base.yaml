@@ -34,8 +34,8 @@ optimizer:
   gamma: 0.66
 
 
-view_number: 4
-rotate_number: 4
+view_number: 4 #Liu 4
+rotate_number: 4 # Liu4
 d_model: 768
 d_hidden: 2048
 dropout_rate: 0.1
@@ -50,7 +50,7 @@ fusion:
   norm_d: true
   late_view_agg: true
   d_model: 768
-  view_num: 4
+  view_num: 1 #Liu 4
   rotation_num: 4
   n_layer: 3
   spatial_enc:

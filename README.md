@@ -57,7 +57,7 @@ For the dependencies please refer [MVT](https://github.com/sega-hsj/MVT-3DVG). A
 ```
 ```Console
     python scripts/train_referit3d.py \
-    --log-dir  log\
+    --log-dir  log \
     --config-file config/base.yaml
 ```
 ### 5.2. Evaluation

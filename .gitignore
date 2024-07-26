@@ -20,4 +20,6 @@ tensor_log.txt
 data_zoo/
 /data_zoo
 launch.json
-
+log/
+distillbert/
+/distillbert
