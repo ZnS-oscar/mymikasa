@@ -10,6 +10,9 @@ from in_out.scannet_scan import ScannetScan, ScannetDataset
 from utils import immediate_subdirectories, create_dir, pickle_data, str2bool
 
 
+"""
+python prepare_scannet_data.py -top-scan-dir /root/autodl-tmp/mymikasa/data_zoo/scannet/scans -top-save-dir /root/autodl-tmp/mymikasa/data_zoo/preparescannet
+"""
 def parse_args():
     parser = argparse.ArgumentParser(description='ReferIt3D')
 

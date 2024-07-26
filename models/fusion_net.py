@@ -53,9 +53,9 @@ class FusionNet(nn.Module):
         self.norm_xy = config.norm_xy
         self.norm_z = config.norm_z
         self.norm_d = config.norm_d
-        self.spatial_enc = nn.Sequential(nn.Linear(8, self.d_model),
+        self.spatial_enc = nn.Sequential(nn.Linear(9, self.d_model),
                                          nn.Dropout(config.spatial_enc.dropout_rate),
-                                         nn.LayerNorm(self.d_model))
+                                         nn.LayerNorm(self.d_model))#for pairwise RI feature, hereis 9, else is 8
         layer = CrossFFN(n_head=config.obj_text.n_head, d_model=self.d_model, d_hidden=config.obj_text.d_hidden, dropout=config.obj_text.dropout_rate)
         self.obj_layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(config.n_layer)])
         self.spatial_text = CrossFFN(n_head=config.spatial_text.n_head, d_model=self.d_model, d_hidden=config.spatial_text.d_hidden, dropout=config.spatial_text.dropout_rate)
@@ -115,42 +115,54 @@ class FusionNet(nn.Module):
         return relative_positions
     @torch.no_grad()
     #this function can replace get_pairwise_distance()
-    def get_pairwise_ri_feature(self, x):
+    def get_pairwise_ri_feature(self,x):
         B, N, _ = x.shape
         centroids = x.mean(dim=1)
         min_values = x.min(dim=1).values  # Shape (B, 3)
         max_values = x.max(dim=1).values  # Shape (B, 3)
         centers = (min_values + max_values) / 2
-        vec_centers_to_centroids = centroids - centers  # Shape (B, 3) 
-        
-        vec_centroid_p=x-centroids[:,None,:]#(B, 3)
-        vec_center_p=x-centers[:,None,:]#(B, 3)
-        mag_centers_to_centroids_xy = torch.norm(vec_centers_to_centroids[...,:2], dim=-1, keepdim=True) # Shape (B, 1)
-        mag_centroids_to_points_xy = torch.norm(vec_centroid_p[...,:2], dim=-1)  # Shape (B, N)
-        mag_centers_to_points_xy = torch.norm(vec_center_p[...,:2], dim=-1)  # Shape (B, N)
-# Obtain the xy distances, do not consider z axis and z related distance or angle
-        d1=vec_centroid_p[...,:2].norm(dim=-1,keepdim=True)+1e-9
-        d2=vec_center_p[...,:2].norm(dim=-1,keepdim=True)+1e-9
-        a1_dot_product_xy = torch.sum((-vec_centers_to_centroids)[:, None, :2] * vec_centroid_p[...,:2] ,dim=-1)  # Shape (B, N)
-        a1 = a1_dot_product_xy / (mag_centers_to_centroids_xy * mag_centroids_to_points_xy)
-        a2_dot_product_xy = torch.sum((vec_centers_to_centroids)[:, None, :2] * vec_center_p[...,:2] ,dim=-1)  # Shape (B, N)
-        a2 = a2_dot_product_xy / (mag_centers_to_centroids_xy * mag_centers_to_points_xy)
-        relative_positions = x[:, None] - x[:, :, None]        
-        d3=xy_distances = relative_positions[..., :2].norm(dim=-1, keepdim=True) + 1e-9
+        vec_centers_to_centroids = centroids - centers  # Shape (B, 3)
 
-    
-        #d1,d2,d4,d5,d3,a1,a2,a3
-        relative_positions = torch.cat([d1.expand(-1, -1, -1, N),d2.expand(-1, -1, -1, N),d1.expand(-1, N, -1, -1),d2.expand(-1, N, -1, -1),
-                                        d3,a1.expand(-1, -1, -1, N),a2.expand(-1, -1, -1, N),a1.expand(-1, N, -1, -1),x[...,-1]], dim=-1)
+        vec_centroid_p = x - centroids[:, None, :]  # (B, 3)
+        vec_center_p = x - centers[:, None, :]  # (B, 3)
+        mag_centers_to_centroids_xy = torch.norm(vec_centers_to_centroids[..., :2], dim=-1, keepdim=True)  # Shape (B, 1)
+        mag_centroids_to_points_xy = torch.norm(vec_centroid_p[..., :2], dim=-1)  # Shape (B, N)
+        mag_centers_to_points_xy = torch.norm(vec_center_p[..., :2], dim=-1)  # Shape (B, N)
+        # Obtain the xy distances, do not consider z axis and z related distance or angle
+        d1 = vec_centroid_p[..., :2].norm(dim=-1, keepdim=True) + 1e-9
+        d2 = vec_center_p[..., :2].norm(dim=-1, keepdim=True) + 1e-9
+        a1_dot_product_xy = torch.sum((-vec_centers_to_centroids)[:, None, :2] * vec_centroid_p[..., :2],
+                                    dim=-1)  # Shape (B, N)
+        a1 = a1_dot_product_xy / (mag_centers_to_centroids_xy * mag_centroids_to_points_xy)
+        a1=a1.unsqueeze(-1)
+        a2_dot_product_xy = torch.sum((vec_centers_to_centroids)[:, None, :2] * vec_center_p[..., :2],
+                                    dim=-1)  # Shape (B, N)
+        a2 = a2_dot_product_xy / (mag_centers_to_centroids_xy * mag_centers_to_points_xy)
+        a2=a2.unsqueeze(-1)
+        relative_positions = x[:, None] - x[:, :, None]
+        d3 = xy_distances = relative_positions[..., :2].norm(dim=-1, keepdim=True) + 1e-9
+
+        z = x[:, :, 2]  # Shape (B, N)
+        z = z[:, :, None, None].expand(-1, -1, N, -1)  # Shape (B, N, N, 1)
+        # d1,d2,d4,d5,d3,a1,a2,a3
+        relative_positions = torch.cat(
+            [d1.unsqueeze(-1).repeat(1, 1, N, 1), d2.unsqueeze(-1).repeat(1, 1, N, 1), d1.permute(0,2,1).repeat(1, N,1).unsqueeze(-1), d2.permute(0,2,1).repeat(1, N,1).unsqueeze(-1),
+            d3, a1.unsqueeze(-1).repeat(1, 1, N, 1), a2.unsqueeze(-1).repeat(1, 1, N, 1), a1.permute(0,2,1).repeat(1, N,1).unsqueeze(-1), z], dim=-1)
+
         # Normalize x-y plane to unit vectors
+        # Liu: this is actually the norm_d, but in RI,there is no xy,so I put norm_d in norm_xy
+
         if self.norm_xy:
-            relative_positions[..., :2] = relative_positions[..., :2] / xy_distances
+            ball_radius = (max_values[..., :2] - min_values[..., :2]).norm(dim=-1, keepdim=True) / 2 + 1e-9
+            ball_radius=ball_radius[:, None, None]
+            relative_positions[..., :5] = relative_positions[..., :5] / ball_radius
         # Scale z values so that max(z) - min(z) = 1
         if self.norm_z:
-            relative_positions[..., 2] = scale_to_unit_range(relative_positions[..., 2])
+            z_normed=scale_to_unit_range(x[:, :, 2] )
+            relative_positions[..., -1] = z_normed[:, :, None, None].expand(-1, -1, N, -1).squeeze(-1)
         # Scale d values between 0 and 1 for each set of relative positions independently.
-        if self.norm_d:
-            relative_positions[..., 3] = scale_to_unit_range(relative_positions[..., 3])
+        # if norm_d:
+        #     relative_positions[..., 3] = scale_to_unit_range(relative_positions[..., 3])
         return relative_positions
     def forward(self, objs, text, boxes, device='cuda'):
         """
@@ -161,12 +173,14 @@ class FusionNet(nn.Module):
         self.device = device
         B, N, _ = boxes.shape 
         # Data view
-        boxes = aug_box(boxes, self.view_num, self.training, self.device)
-        boxes = boxes.reshape(B*self.view_num, N, 7)
+        # boxes = aug_box(boxes, self.view_num, self.training, self.device)
+        # boxes = boxes.reshape(B*self.view_num, N, 7)
+        boxes=boxes.to(device)
         xyz = boxes[...,:3]
         
         # Get relative positions and pos features
-        relative_positions = self.get_pairwise_distance(xyz).detach()
+        # relative_positions = self.get_pairwise_distance(xyz).detach()
+        relative_positions = self.get_pairwise_ri_feature(xyz).detach()
         spatial_features = self.spatial_enc(relative_positions).reshape(B*self.view_num*N, N, self.d_model)
         # Forward
         text_view_N = batch_expansion(batch_expansion(text, self.view_num), N)
