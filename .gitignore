@@ -17,3 +17,7 @@ sr3d+.csv
 sr3d.csv
 category.txt
 tensor_log.txt
+data_zoo/
+/data_zoo
+launch.json
+
